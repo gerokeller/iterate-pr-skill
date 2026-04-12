@@ -56,6 +56,14 @@ To add support for a new CI/preview/coverage/bot system, drop a new file into `p
 
 All scripts use PEP 723 inline metadata; invoke via `uv run <script>`.
 
+## Tests
+
+```bash
+python -m unittest discover tests -v
+```
+
+Pure-stdlib tests (no pytest/pip-install step). CI runs them on Python 3.9, 3.11, and 3.13 on every PR.
+
 ## License
 
 MIT
