@@ -22,8 +22,8 @@ Continuously iterate on the current branch until every required PR check is gree
   - success: `pass`, `skipping`
   - actionable failure: `fail`, `cancel`
   - waiting: `pending`
-- Treat all failing checks and status contexts as blockers, including external providers such as Supabase, Vercel, Codacy, or other non-GitHub Actions integrations.
-- Do not classify Supabase Preview failures as ignorable infrastructure. Treat Supabase checks as actionable until you have inspected the exact failure output and exhausted the Supabase recovery ladder below.
+- Treat all failing checks and status contexts as blockers, including external providers (preview environments, coverage, static analysis) and non-GitHub Actions integrations.
+- Do not classify external-provider failures as ignorable infrastructure. Treat them as actionable until you have inspected the exact failure output and exhausted any provider-specific recovery path (see **Provider-specific handling** below).
 - Never declare a PR merge-ready while any check or status context is `fail`, `cancel`, or `pending`, even if you believe the failure is stale, infrastructural, or unrelated to code. In that case the outcome is `blocked`, not `complete`.
 - In parallel with CI triage, inspect unresolved review feedback and handle review threads and actionable PR comments one by one.
 - Treat resolved review threads as necessary but not sufficient. A PR is not feedback-complete while any review thread remains unresolved, or while top-level review submissions, issue comments, or a `CHANGES_REQUESTED` review decision still require action.
@@ -191,25 +191,12 @@ Avoid expensive log work:
 - group failing checks by likely root cause before deeper inspection
 - do not fetch or inspect more log detail after the root cause is already clear
 
-Supabase-specific handling:
-- treat `Ensure Supabase Preview Branch`, `Configure Supabase Preview`, and `Supabase Preview` as one Supabase root-cause group when they fail together
-- use `provider`, `check_family`, `failure_markers`, `run_id`, `job_id`, `link`, and `recovery_hint` from `fetch_pr_checks.py` when present
-- if a Supabase-related check failed, inspect the exact Preview workflow job output or the status details URL before deciding whether the problem is code, migrations, configuration, or stale preview state
-- if logs point to migrations, schema drift, or preview configuration, fix the repository issue locally and validate the relevant migration or test surface before pushing
-- if logs or status details indicate stale or stuck preview provisioning, run this recovery ladder before stopping:
-  1. rerun the Preview workflow once with `gh run rerun RUN_ID`
-  2. wait for the rerun to settle, then snapshot checks again
-  3. if the failure still points to stale preview state, close and reopen the PR once so the `reopened` event recreates preview provisioning
-  4. snapshot checks again and continue the loop
-- if only the external `Supabase Preview` status context is failing, inspect its details URL and pair it with the latest `Preview` workflow run instead of assuming it is untouchable
-- do not repeat the same Supabase recovery step more than once in a single iteration session unless new evidence appears
-- only report `blocked-by-external-check` or `blocked-by-supabase-preview` for Supabase after the failure output was inspected and the recovery ladder was exhausted
-
-Codecov-specific handling:
-- treat `codecov/patch` and other failing Codecov contexts as blockers while `ready_for_merge` is false
-- use the Codecov `detailsUrl` and `recovery_hint` to determine whether the failure is caused by low patch coverage, low project coverage, or upload/config issues
-- if Codecov reports low coverage, identify the changed lines reducing coverage and add or update tests locally before pushing
-- do not describe a failing Codecov check as informational, optional, or safe to ignore unless GitHub explicitly reports the PR as merge-ready after the check settles
+Provider-specific handling:
+- every actionable check carries a `provider` tag (e.g. `supabase`, `codecov`, `vercel`) and often a `check_family` (e.g. `supabase-preview`, `codecov-coverage`) produced by `fetch_pr_checks.py` via the pluggable layer in `providers/`
+- when a failing check has a `provider` tag that matches a file in `providers/<name>.md`, read that file before acting. The provider doc contains the root-cause grouping, recovery ladder, stop-reason vocabulary, and evidence format for that provider
+- if no provider doc exists, follow the generic recovery path: inspect the details URL, find any paired GitHub Actions workflow, and only stop as `blocked` after concrete evidence the failure cannot be advanced from the repository side
+- use `provider`, `check_family`, `failure_markers`, `run_id`, `job_id`, `link`, and `recovery_hint` from the script output as the structured inputs to your recovery decision
+- do not repeat the same provider-specific recovery step more than once in a single iteration session unless new evidence appears
 
 ### 3.5. Launch Parallel Work When It Helps
 
@@ -419,7 +406,7 @@ Preferred `stop_reason` values:
 - `blocked-by-checks`
 - `blocked-by-feedback`
 - `blocked-by-external-check`
-- `blocked-by-supabase-preview`
+- `blocked-by-<provider>-<family>` (provider-contributed; see `providers/<name>.md` — e.g. `blocked-by-supabase-preview`)
 - `blocked-by-review-decision`
 - `blocked-by-draft-pr`
 - `blocked-by-no-pr`
@@ -432,7 +419,7 @@ Evidence rules:
 - if checks are blocking, name the failing or pending checks and include `mergeStateStatus`
 - if feedback is blocking, include `reviewDecision`, actionable feedback counts, unresolved review-thread counts, and whether unresolved top-level comments or review submissions remain
 - if the stop is due to external infrastructure, name the external provider and the failing check/context, include the details URL when available, and list the recovery actions already attempted
-- if the stop is due to Supabase, include the failing Supabase checks, any extracted failure markers such as `MIGRATIONS_FAILED`, and whether Preview rerun / PR reopen recovery was attempted
+- if the stop is provider-contributed (e.g. `blocked-by-supabase-preview`), follow the evidence format in the provider's `providers/<name>.md`
 - if the stop is success, say explicitly that `ready_for_merge` is true, `feedback_cleared` is true, and `all_review_threads_resolved` is true
 
 Minimum final-output shape:

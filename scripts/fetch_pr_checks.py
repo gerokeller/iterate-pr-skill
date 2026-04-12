@@ -20,27 +20,20 @@ import json
 import re
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from providers import (  # noqa: E402
+    all_failure_markers,
+    build_recovery_hint as provider_recovery_hint,
+    classify_family as provider_classify_family,
+    detect_provider as provider_detect,
+)
 
 
 ACTIONS_RUN_LINK_RE = re.compile(r"/actions/runs/(?P<run_id>\d+)(?:/job/(?P<job_id>\d+))?")
-FAILURE_MARKER_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("MIGRATIONS_FAILED", re.compile(r"\bMIGRATIONS_FAILED\b", re.IGNORECASE)),
-    ("TIMEOUT_WAITING_FOR_BRANCH", re.compile(r"Timeout waiting for branch", re.IGNORECASE)),
-    ("FAILED_TO_SET_SECRETS", re.compile(r"Failed to set secrets", re.IGNORECASE)),
-    (
-        "AUTH_HOOK_CONFIGURATION_FAILED",
-        re.compile(r"Auth hook configuration failed", re.IGNORECASE),
-    ),
-    (
-        "FAILED_TO_CREATE_SUPABASE_BRANCH",
-        re.compile(r"Failed to create Supabase branch", re.IGNORECASE),
-    ),
-    (
-        "FAILED_TO_LIST_SUPABASE_BRANCHES",
-        re.compile(r"Failed to list Supabase branches", re.IGNORECASE),
-    ),
-)
+FAILURE_MARKER_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(all_failure_markers())
 
 
 def run_gh(args: list[str]) -> dict[str, Any] | list[Any] | None:
@@ -115,33 +108,26 @@ def detect_check_type(link: str, workflow: str) -> str:
 
 
 def detect_provider(name: str, workflow: str, link: str) -> str:
-    """Infer the provider behind a check or status context."""
-    haystack = " ".join([name, workflow, link]).lower()
-    if "supabase" in haystack:
-        return "supabase"
-    if "codecov" in haystack:
-        return "codecov"
-    if "vercel" in haystack:
-        return "vercel"
-    if "codacy" in haystack:
-        return "codacy"
-    if "coderabbit" in haystack:
-        return "coderabbit"
+    """Infer the provider behind a check or status context.
+
+    Provider-specific detection is delegated to the pluggable :mod:`providers`
+    registry. If no provider matches, fall back to "github-actions" for jobs
+    that originate from an Actions run URL and "external" for everything else.
+    """
+    match = provider_detect(name, workflow, link)
+    if match:
+        return match
     if detect_check_type(link, workflow) == "github-actions":
         return "github-actions"
     return "external"
 
 
 def detect_check_family(name: str, workflow: str, link: str) -> str | None:
-    """Group related checks into a provider-specific family."""
-    haystack = " ".join([name, workflow, link]).lower()
-    if "supabase" in haystack and "preview" in haystack:
-        return "supabase-preview"
-    if "codecov" in haystack:
-        return "codecov-coverage"
-    if "vercel" in haystack and "preview" in haystack:
-        return "vercel-preview"
-    return None
+    """Group related checks into a provider-specific family via the registry."""
+    provider = provider_detect(name, workflow, link)
+    if not provider:
+        return None
+    return provider_classify_family(provider, name, workflow, link)
 
 
 def extract_failure_snippet(log_text: str, max_lines: int = 50) -> str:
@@ -215,48 +201,21 @@ def extract_failure_markers(log_text: str) -> list[str]:
 
 
 def build_recovery_hint(check: dict[str, Any]) -> dict[str, Any] | None:
-    """Attach provider-specific next steps for actionable checks."""
-    status = check.get("status")
+    """Attach provider-specific next steps for actionable checks.
+
+    Provider-specific recovery logic is delegated to the :mod:`providers`
+    registry. A generic fallback covers non-GitHub-Actions status contexts
+    that no provider claimed.
+    """
+    status = check.get("status", "")
     provider = check.get("provider")
-    check_family = check.get("check_family")
+    family = check.get("check_family")
     check_type = check.get("check_type")
     failure_markers = check.get("failure_markers", [])
 
-    if provider == "supabase" and check_family == "supabase-preview" and status in {"fail", "cancel", "pending"}:
-        summary = (
-            "Inspect the exact Preview workflow output and Supabase status details before classifying this as external-only."
-        )
-        if "MIGRATIONS_FAILED" in failure_markers:
-            summary = (
-                "Supabase preview provisioning reported MIGRATIONS_FAILED; this can be a real migration/config problem or a stale preview branch."
-            )
-        elif "TIMEOUT_WAITING_FOR_BRANCH" in failure_markers:
-            summary = "Supabase preview provisioning timed out waiting for the branch to become ready."
-
-        return {
-            "classification": "supabase-preview",
-            "summary": summary,
-            "recommended_steps": [
-                "Inspect the exact job logs or details URL before deciding the failure is external-only.",
-                "If the output points to migrations, schema drift, or preview configuration, fix the repository issue locally and validate the relevant migration/test surface.",
-                "If the output points to stale or stuck preview provisioning, rerun the Preview workflow once.",
-                "If rerun does not clear the stale preview state, close and reopen the PR once to trigger preview provisioning again.",
-            ],
-            "stop_only_after": "Inspecting the failure output and exhausting one rerun plus one PR reopen recovery attempt",
-        }
-
-    if provider == "codecov" and check_family == "codecov-coverage" and status in {"fail", "cancel", "pending"}:
-        return {
-            "classification": "codecov-coverage",
-            "summary": "Codecov coverage checks are merge blockers when they fail and GitHub still reports the PR as blocked.",
-            "recommended_steps": [
-                "Open the Codecov details URL and capture whether the failure is patch coverage, project coverage, or upload/config related.",
-                "If patch or project coverage failed, identify the changed lines reducing coverage and add or adjust tests locally before pushing.",
-                "If the Codecov status looks stale or upload-related, inspect the paired CI workflow output for upload/config failures before retrying.",
-                "Do not describe a failing Codecov check as informational unless GitHub explicitly reports the PR as merge-ready.",
-            ],
-            "stop_only_after": "Inspecting the Codecov details and exhausting the repository-side coverage or upload fixes available from the current branch",
-        }
+    hint = provider_recovery_hint(provider, family, status, failure_markers)
+    if hint is not None:
+        return hint
 
     if check_type == "status-context" and status in {"fail", "cancel", "pending"}:
         return {

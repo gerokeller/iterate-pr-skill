@@ -27,27 +27,15 @@ import json
 import re
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from providers import bot_author_patterns  # noqa: E402
 
-# Known bot usernames and patterns
-BOT_PATTERNS = [
-    r"(?i)bot$",
-    r"(?i)^codecov",
-    r"(?i)^sentry",
-    r"(?i)^dependabot",
-    r"(?i)^renovate",
-    r"(?i)^github-actions",
-    r"(?i)^mergify",
-    r"(?i)^semantic-release",
-    r"(?i)^sonarcloud",
-    r"(?i)^snyk",
-    r"(?i)^cursor",
-    r"(?i)^bugbot",
-    r"(?i)^seer",
-    r"(?i)^copilot",
-    r"(?i)\[bot\]$",
-]
+
+# Aggregated bot-author regexes: generic defaults plus provider contributions.
+BOT_PATTERNS: list[re.Pattern[str]] = bot_author_patterns()
 
 
 def run_gh(args: list[str]) -> dict[str, Any] | list[Any] | None:
@@ -103,11 +91,8 @@ def get_pr_info(pr_number: int | None = None) -> dict[str, Any] | None:
 
 
 def is_bot(username: str) -> bool:
-    """Check if username matches known bot patterns."""
-    for pattern in BOT_PATTERNS:
-        if re.search(pattern, username):
-            return True
-    return False
+    """Check if username matches any known bot pattern."""
+    return any(pattern.search(username) for pattern in BOT_PATTERNS)
 
 
 def get_issue_comments(owner: str, repo: str, pr_number: int) -> list[dict[str, Any]]:
