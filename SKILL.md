@@ -39,6 +39,7 @@ Continuously iterate on the current branch until every required PR check is gree
   - if the run makes no code changes, skip push-related waiting
   - if only one root cause group exists, stay single-agent
 - Every time the skill stops, it must report a clear `stop_reason` with concrete evidence. Never end with only “done”, “complete”, or “ready” without explaining why the loop ended.
+- Prefer reactive waiting over blocking polls. When available, use the `Monitor` tool with `scripts/watch_pr_state.py` so CI and reviewer activity notify you as events. Events are signals to *consider re-snapshotting* at run-boundary decision points (post-push, before final verdict, before the reply/resolve phase) — they are not license to interrupt an in-progress local batch. State of record is still `fetch_pr_checks.py` / `fetch_pr_feedback.py`.
 - Push exactly once at the end of the run if code changed, after all fixes and thread decisions for that run are complete.
 - If a run only adds replies or resolves threads and produces no code changes, do not create an empty commit and do not push.
 - After pushing, restart from the beginning: fetch checks again, fetch feedback again, and continue until no unresolved review comments remain and all checks are green or skipped.
@@ -73,6 +74,29 @@ Returns JSON:
   ]
 }
 ```
+
+### `scripts/watch_pr_state.py`
+
+Streams PR check-state transitions and new review activity as one-line events on stdout. Designed to be launched via Claude Code's `Monitor` tool so the agent can keep working while CI runs and reviewers comment, instead of blocking on `gh pr checks --watch`.
+
+All polling uses ETag-conditional GitHub requests (`If-None-Match`). Steady-state cycles cost a single cheap 304 per endpoint, so short intervals (10-15s) are safe on the primary rate limit. The watcher calls `/commits/{sha}/check-runs`, `/commits/{sha}/status`, `/issues/{n}/comments`, `/pulls/{n}/comments`, and `/pulls/{n}/reviews` directly (not `gh pr checks`) so it can attach `If-None-Match` headers.
+
+```bash
+uv run ${CLAUDE_SKILL_ROOT}/scripts/watch_pr_state.py \
+    --watch all --interval 15 \
+    --since "$SNAPSHOT_AT" \
+    --exit-when checks-settled --max-idle-cycles 1
+```
+
+Event lines:
+- `check:<name>:<old>-><new>` — a check changed state
+- `check-new:<name>:<state>` — a check appeared after baseline
+- `checks-settled:passed=N,failed=N,cancelled=N,pending=0` — no checks remain pending
+- `comment:<issue|review>:<id>:<author>` — new PR/review comment since baseline
+- `review:<state>:<author>` — new review submission since baseline
+- `error:<short-message>` — diagnostics land on stderr; only this shape hits stdout
+
+The watcher never mutates state. It only tells you *when a re-snapshot is worth running.* Re-snapshot with `fetch_pr_checks.py` / `fetch_pr_feedback.py` — do not try to reconstruct state from event lines alone.
 
 ### `scripts/fetch_pr_feedback.py`
 
@@ -352,13 +376,20 @@ Rules:
 
 After pushing, or after completing a no-code review-only run, return to step 2. Do not assume the PR is done based on local state.
 
-If the push triggered new checks, wait for GitHub to report them:
+If the push triggered new checks, wait for GitHub to report them. Prefer reactive waiting via `Monitor` so you can keep working (drafting rejected-comment replies, re-reading the diff, preparing the final verdict summary) until CI settles:
 
 ```bash
+# Preferred (reactive, ETag-conditional): launched via the Monitor tool, not directly.
+uv run ${CLAUDE_SKILL_ROOT}/scripts/watch_pr_state.py \
+    --watch all --interval 15 \
+    --since "$PUSH_SNAPSHOT_AT" \
+    --exit-when checks-settled --max-idle-cycles 1
+
+# Fallback (blocking): use only when Monitor is unavailable.
 gh pr checks --watch --interval 30
 ```
 
-Then fetch checks and feedback again and start the next run.
+When the watcher emits `checks-settled:...` or a new `comment:`/`review:` event, re-run the snapshot scripts for ground truth and start the next run. Do not act on event lines alone.
 
 If the run had no code changes, skip `gh pr checks --watch` because no new CI work was triggered.
 
