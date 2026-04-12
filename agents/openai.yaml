@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Iterate PR'
+  short_description: 'Drive a pull request to merge-ready by fixing checks and review feedback.'
+  default_prompt: 'Use $iterate-pr to iterate on the current PR until all checks pass and all review feedback is resolved.'
