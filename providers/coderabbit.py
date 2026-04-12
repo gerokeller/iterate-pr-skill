@@ -6,7 +6,6 @@ import re
 
 from ._base import Provider
 
-
 PROVIDER = Provider(
     name="coderabbit",
     detect_keywords=("coderabbit",),

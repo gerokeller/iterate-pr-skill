@@ -9,7 +9,6 @@ import re
 
 from ._base import Provider, RecoveryHint
 
-
 _FAILURE_MARKERS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("MIGRATIONS_FAILED", re.compile(r"\bMIGRATIONS_FAILED\b", re.IGNORECASE)),
     ("TIMEOUT_WAITING_FOR_BRANCH", re.compile(r"Timeout waiting for branch", re.IGNORECASE)),
@@ -29,9 +28,7 @@ _FAILURE_MARKERS: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 
 
-def _recovery(
-    family: str | None, status: str, markers: list[str]
-) -> RecoveryHint | None:
+def _recovery(family: str | None, status: str, markers: list[str]) -> RecoveryHint | None:
     if family != "supabase-preview" or status not in {"fail", "cancel", "pending"}:
         return None
 
@@ -45,10 +42,7 @@ def _recovery(
             "a real migration/config problem or a stale preview branch."
         )
     elif "TIMEOUT_WAITING_FOR_BRANCH" in markers:
-        summary = (
-            "Supabase preview provisioning timed out waiting for the branch to "
-            "become ready."
-        )
+        summary = "Supabase preview provisioning timed out waiting for the branch to become ready."
 
     return RecoveryHint(
         classification="supabase-preview",

@@ -56,13 +56,29 @@ To add support for a new CI/preview/coverage/bot system, drop a new file into `p
 
 All scripts use PEP 723 inline metadata; invoke via `uv run <script>`.
 
-## Tests
+## Development
+
+Install the dev tooling (ruff + mypy) once:
 
 ```bash
-python -m unittest discover tests -v
+pip install -e ".[dev]"
 ```
 
-Pure-stdlib tests (no pytest/pip-install step). CI runs them on Python 3.9, 3.11, and 3.13 on every PR.
+Then:
+
+```bash
+# Unit tests (stdlib unittest, 131 tests)
+python -m unittest discover tests -v
+
+# Lint + format check
+ruff check .
+ruff format --check .
+
+# Type check
+mypy
+```
+
+CI runs all three on every PR. Tests run on Python 3.9, 3.11, and 3.13; lint and type-check run on 3.13.
 
 ## License
 

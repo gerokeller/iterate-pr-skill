@@ -48,7 +48,7 @@ class SupabaseFailureMarkersTests(unittest.TestCase):
         )
 
     def test_markers_match_log_phrases(self) -> None:
-        patterns = {n: p for n, p in PROVIDER.failure_marker_patterns}
+        patterns = dict(PROVIDER.failure_marker_patterns)
         self.assertIsNotNone(patterns["MIGRATIONS_FAILED"].search("::error MIGRATIONS_FAILED"))
         self.assertIsNotNone(
             patterns["TIMEOUT_WAITING_FOR_BRANCH"].search("Timeout waiting for branch"),
@@ -76,9 +76,7 @@ class SupabaseRecoveryHintTests(unittest.TestCase):
         self.assertIn("reopen", " ".join(hint.recommended_steps).lower())
 
     def test_migrations_failed_summary(self) -> None:
-        hint = PROVIDER.build_recovery_hint(
-            "supabase-preview", "fail", ["MIGRATIONS_FAILED"]
-        )
+        hint = PROVIDER.build_recovery_hint("supabase-preview", "fail", ["MIGRATIONS_FAILED"])
         self.assertIsNotNone(hint)
         assert hint is not None
         self.assertIn("MIGRATIONS_FAILED", hint.summary)

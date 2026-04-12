@@ -21,9 +21,7 @@ class ParseActionsRunIdsTests(unittest.TestCase):
         self.assertEqual(job_id, 7891011)
 
     def test_parses_run_only(self) -> None:
-        run_id, job_id = fpc.parse_actions_run_ids(
-            "https://github.com/foo/bar/actions/runs/42"
-        )
+        run_id, job_id = fpc.parse_actions_run_ids("https://github.com/foo/bar/actions/runs/42")
         self.assertEqual(run_id, 42)
         self.assertIsNone(job_id)
 
@@ -166,7 +164,7 @@ class BuildRecoveryHintTests(unittest.TestCase):
         self.assertEqual(hint["classification"], "external-status")
 
     def test_passing_github_actions_check_has_no_hint(self) -> None:
-        check = {
+        check: dict[str, object] = {
             "status": "pass",
             "provider": "github-actions",
             "check_family": None,
@@ -178,7 +176,7 @@ class BuildRecoveryHintTests(unittest.TestCase):
     def test_failing_github_actions_check_without_provider_has_no_hint(self) -> None:
         # github-actions is not a registered Provider; the external-status
         # fallback does not apply to github-actions check_type.
-        check = {
+        check: dict[str, object] = {
             "status": "fail",
             "provider": "github-actions",
             "check_family": None,

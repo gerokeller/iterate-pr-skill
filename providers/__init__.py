@@ -32,9 +32,7 @@ def _discover() -> list[Provider]:
 PROVIDERS: list[Provider] = _discover()
 
 
-def detect_provider(
-    name: str, workflow: str, link: str, fallback: str | None = None
-) -> str | None:
+def detect_provider(name: str, workflow: str, link: str, fallback: str | None = None) -> str | None:
     """Return the first provider whose detection keywords match, else fallback."""
     for provider in PROVIDERS:
         if provider.detects(name, workflow, link):
@@ -42,9 +40,7 @@ def detect_provider(
     return fallback
 
 
-def classify_family(
-    provider_name: str, name: str, workflow: str, link: str
-) -> str | None:
+def classify_family(provider_name: str, name: str, workflow: str, link: str) -> str | None:
     for provider in PROVIDERS:
         if provider.name == provider_name:
             return provider.classify_family(name, workflow, link)
@@ -86,9 +82,9 @@ __all__ = [
     "PROVIDERS",
     "Provider",
     "RecoveryHint",
-    "detect_provider",
-    "classify_family",
     "all_failure_markers",
     "bot_author_patterns",
     "build_recovery_hint",
+    "classify_family",
+    "detect_provider",
 ]

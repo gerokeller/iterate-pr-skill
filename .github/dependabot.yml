@@ -4,16 +4,38 @@
 # Docs: https://docs.github.com/en/code-security/dependabot
 #
 # Coverage:
-#   - GitHub Actions workflow pins (actions/checkout, actions/setup-python, ...).
+#   - pip: dev dependencies declared in pyproject.toml's
+#     [project.optional-dependencies].dev (ruff, mypy).
+#   - github-actions: workflow action pins (actions/checkout, setup-python, ...).
 #
-# Not covered:
-#   - Python dependencies. The bundled scripts use PEP 723 inline metadata
-#     (requires-python only, no runtime deps) which Dependabot does not scan.
-#     If a pyproject.toml or requirements.txt is added later, add a matching
-#     `pip` ecosystem block here.
+# Not scanned:
+#   - PEP 723 inline script metadata in scripts/*.py. The bundled scripts have
+#     no runtime deps today; add them to pyproject.toml if they grow any.
 
 version: 2
 updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Zurich"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(dev-deps)"
+      include: "scope"
+    groups:
+      python-minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -29,8 +51,6 @@ updates:
       prefix: "chore(ci)"
       include: "scope"
     groups:
-      # Bundle patch + minor bumps so the weekly run produces a single PR
-      # rather than one per action. Majors stay individual for review.
       actions-minor-and-patch:
         applies-to: version-updates
         update-types:

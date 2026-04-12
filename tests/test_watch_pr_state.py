@@ -51,9 +51,7 @@ class BucketCheckRunTests(unittest.TestCase):
     def test_failure_variants(self) -> None:
         for conclusion in ("failure", "timed_out", "action_required", "stale"):
             self.assertEqual(
-                wps.bucket_check_run(
-                    {"status": "completed", "conclusion": conclusion}
-                ),
+                wps.bucket_check_run({"status": "completed", "conclusion": conclusion}),
                 "fail",
                 msg=conclusion,
             )
@@ -98,13 +96,13 @@ class _FakeResponse:
             return None
 
     @property
-    def headers(self) -> "_FakeResponse._Headers":
+    def headers(self) -> _FakeResponse._Headers:
         return _FakeResponse._Headers(self._etag)
 
     def read(self) -> bytes:
         return self._body
 
-    def __enter__(self) -> "_FakeResponse":
+    def __enter__(self) -> _FakeResponse:
         return self
 
     def __exit__(self, *exc: object) -> None:
@@ -112,7 +110,9 @@ class _FakeResponse:
 
 
 def _http_error_304(url: str) -> urlerror.HTTPError:
-    return urlerror.HTTPError(url, 304, "Not Modified", {}, io.BytesIO(b""))  # type: ignore[arg-type]
+    from email.message import Message
+
+    return urlerror.HTTPError(url, 304, "Not Modified", Message(), io.BytesIO(b""))
 
 
 class ConditionalClientTests(unittest.TestCase):
@@ -120,7 +120,7 @@ class ConditionalClientTests(unittest.TestCase):
         self.client = wps.ConditionalClient(token="fake-token")
 
     @patch.object(wps.urlrequest, "urlopen")
-    def test_first_get_sends_no_if_none_match_and_caches_etag(self, urlopen) -> None:
+    def test_first_get_sends_no_if_none_match_and_caches_etag(self, urlopen: MagicMock) -> None:
         urlopen.return_value = _FakeResponse(body={"ok": True}, etag='"v1"')
         status, body = self.client.get("/x")
         self.assertEqual(status, 200)
@@ -131,7 +131,7 @@ class ConditionalClientTests(unittest.TestCase):
         self.assertIn("github", req.full_url)
 
     @patch.object(wps.urlrequest, "urlopen")
-    def test_second_get_sends_cached_etag(self, urlopen) -> None:
+    def test_second_get_sends_cached_etag(self, urlopen: MagicMock) -> None:
         urlopen.side_effect = [
             _FakeResponse(body={"v": 1}, etag='"v1"'),
             _FakeResponse(body={"v": 2}, etag='"v2"'),
@@ -142,7 +142,7 @@ class ConditionalClientTests(unittest.TestCase):
         self.assertEqual(second_req.get_header("If-none-match"), '"v1"')
 
     @patch.object(wps.urlrequest, "urlopen")
-    def test_304_returns_none_body_and_keeps_cached_etag(self, urlopen) -> None:
+    def test_304_returns_none_body_and_keeps_cached_etag(self, urlopen: MagicMock) -> None:
         urlopen.side_effect = [
             _FakeResponse(body={"v": 1}, etag='"v1"'),
             _http_error_304("https://api.github.com/x"),
@@ -158,23 +158,29 @@ class ConditionalClientTests(unittest.TestCase):
         self.assertEqual(third_req.get_header("If-none-match"), '"v1"')
 
     @patch.object(wps.urlrequest, "urlopen")
-    def test_non_304_http_error_returns_code_and_none(self, urlopen) -> None:
+    def test_non_304_http_error_returns_code_and_none(self, urlopen: MagicMock) -> None:
+        from email.message import Message
+
         urlopen.side_effect = urlerror.HTTPError(
-            "https://api.github.com/x", 500, "Server Error", {}, io.BytesIO(b"")  # type: ignore[arg-type]
+            "https://api.github.com/x",
+            500,
+            "Server Error",
+            Message(),
+            io.BytesIO(b""),
         )
         status, body = self.client.get("/x")
         self.assertEqual(status, 500)
         self.assertIsNone(body)
 
     @patch.object(wps.urlrequest, "urlopen")
-    def test_url_error_returns_zero_status(self, urlopen) -> None:
+    def test_url_error_returns_zero_status(self, urlopen: MagicMock) -> None:
         urlopen.side_effect = urlerror.URLError("boom")
         status, body = self.client.get("/x")
         self.assertEqual(status, 0)
         self.assertIsNone(body)
 
     @patch.object(wps.urlrequest, "urlopen")
-    def test_query_params_are_urlencoded(self, urlopen) -> None:
+    def test_query_params_are_urlencoded(self, urlopen: MagicMock) -> None:
         urlopen.return_value = _FakeResponse(body={}, etag='"a"')
         self.client.get("/x", {"since": "2026-01-01T00:00:00+00:00", "per_page": "100"})
         req = urlopen.call_args.args[0]
@@ -223,7 +229,10 @@ class FetchCheckStateTests(unittest.TestCase):
 
     def test_check_runs_take_precedence_on_name_collision(self) -> None:
         self.client.get.side_effect = [
-            (200, {"check_runs": [{"name": "dup", "status": "completed", "conclusion": "success"}]}),
+            (
+                200,
+                {"check_runs": [{"name": "dup", "status": "completed", "conclusion": "success"}]},
+            ),
             (200, {"statuses": [{"context": "dup", "state": "failure"}]}),
         ]
         merged = wps.fetch_check_state(self.client, "o", "r", "sha", self.cache)
@@ -233,7 +242,10 @@ class FetchCheckStateTests(unittest.TestCase):
     def test_304_on_both_reuses_cache(self) -> None:
         # Prime cache with a 200
         self.client.get.side_effect = [
-            (200, {"check_runs": [{"name": "tests", "status": "completed", "conclusion": "success"}]}),
+            (
+                200,
+                {"check_runs": [{"name": "tests", "status": "completed", "conclusion": "success"}]},
+            ),
             (200, {"statuses": []}),
         ]
         first = wps.fetch_check_state(self.client, "o", "r", "sha", self.cache)

@@ -1,0 +1,96 @@
+[project]
+name = "iterate-pr-skill"
+version = "0.1.0"
+description = "Claude Code skill: iterate on a pull request until merge-ready."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+authors = [{ name = "Gero Keller" }]
+keywords = ["claude-code", "skill", "pull-request", "ci", "github"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+# No runtime dependencies: the bundled scripts use PEP 723 inline metadata
+# and only require the Python standard library.
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/gerokeller/iterate-pr-skill"
+Issues = "https://github.com/gerokeller/iterate-pr-skill/issues"
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.7.0,<1.0",
+    "mypy>=1.13.0,<2.0",
+]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# Not published to PyPI; this block only exists so ``pip install -e .[dev]``
+# works in CI. Include ``providers`` as the sole Python package; scripts are
+# intentionally kept as loose files for ``uv run`` invocation.
+packages = ["providers"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+extend-exclude = [".venv", "output", "node_modules", "__pycache__"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "RUF",  # ruff-specific
+    "SIM",  # flake8-simplify
+    "C4",   # flake8-comprehensions
+    "PTH",  # flake8-use-pathlib
+]
+ignore = [
+    "E501",   # line too long; the formatter handles width
+    "UP007",  # ``Optional[X]`` over ``X | None`` — needed for module-scope type aliases on 3.9
+    "UP045",  # same family as UP007 for newer ruff versions
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = [
+    "B011",   # ``assert`` in tests is fine
+    "PTH",    # sys.path setup boilerplate uses ``os.path``; not worth a rewrite
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.9"
+files = ["providers", "scripts", "tests"]
+# Start with sensible defaults; can tighten to ``strict = true`` later.
+warn_return_any = true
+warn_unused_configs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+check_untyped_defs = true
+no_implicit_optional = true
+strict_equality = true
+disallow_incomplete_defs = true
+# The scripts sit next to ``providers/`` and rely on a sys.path hack to import
+# it. Tell mypy about both roots so imports resolve.
+mypy_path = "$MYPY_CONFIG_FILE_DIR:$MYPY_CONFIG_FILE_DIR/scripts"
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+# Tests use duck-typed mocks extensively; don't require full annotations.
+disallow_untyped_defs = false
