@@ -27,7 +27,7 @@ Issues = "https://github.com/gerokeller/iterate-pr-skill/issues"
 [project.optional-dependencies]
 dev = [
     "ruff>=0.7.0,<1.0",
-    "mypy>=1.13.0,<2.0",
+    "mypy>=1.19.1,<2.0",
 ]
 
 [build-system]
