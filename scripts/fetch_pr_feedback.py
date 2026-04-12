@@ -19,20 +19,20 @@ Categories (using LOGAF scale - see https://develop.sentry.dev/engineering-pract
 - bot: Automated comments (Codecov, Sentry bot, etc.)
 - resolved: Already resolved threads
 """
+
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
 import json
 import re
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from providers import bot_author_patterns  # noqa: E402
-
+from providers import bot_author_patterns
 
 # Aggregated bot-author regexes: generic defaults plus provider contributions.
 BOT_PATTERNS: list[re.Pattern[str]] = bot_author_patterns()
@@ -42,7 +42,7 @@ def run_gh(args: list[str]) -> dict[str, Any] | list[Any] | None:
     """Run a gh CLI command and return parsed JSON output."""
     try:
         result = subprocess.run(
-            ["gh"] + args,
+            ["gh", *args],
             capture_output=True,
             text=True,
             check=True,
@@ -87,7 +87,8 @@ def get_pr_info(pr_number: int | None = None) -> dict[str, Any] | None:
     args = ["pr", "view", "--json", "number,url,headRefName,author,reviews,reviewDecision"]
     if pr_number:
         args.insert(2, str(pr_number))
-    return run_gh(args)
+    result = run_gh(args)
+    return result if isinstance(result, dict) else None
 
 
 def is_bot(username: str) -> bool:
@@ -97,11 +98,13 @@ def is_bot(username: str) -> bool:
 
 def get_issue_comments(owner: str, repo: str, pr_number: int) -> list[dict[str, Any]]:
     """Get PR conversation comments (includes bot comments)."""
-    result = run_gh([
-        "api",
-        f"repos/{owner}/{repo}/issues/{pr_number}/comments",
-        "--paginate",
-    ])
+    result = run_gh(
+        [
+            "api",
+            f"repos/{owner}/{repo}/issues/{pr_number}/comments",
+            "--paginate",
+        ]
+    )
     return result if isinstance(result, list) else []
 
 
@@ -143,19 +146,31 @@ def get_review_threads(owner: str, repo: str, pr_number: int) -> list[dict[str, 
     try:
         result = subprocess.run(
             [
-                "gh", "api", "graphql",
-                "-f", f"query={query}",
-                "-F", f"owner={owner}",
-                "-F", f"repo={repo}",
-                "-F", f"pr={pr_number}",
+                "gh",
+                "api",
+                "graphql",
+                "-f",
+                f"query={query}",
+                "-F",
+                f"owner={owner}",
+                "-F",
+                f"repo={repo}",
+                "-F",
+                f"pr={pr_number}",
             ],
             capture_output=True,
             text=True,
             check=True,
         )
         data = json.loads(result.stdout)
-        threads = data.get("data", {}).get("repository", {}).get("pullRequest", {}).get("reviewThreads", {}).get("nodes", [])
-        return threads
+        threads = (
+            data.get("data", {})
+            .get("repository", {})
+            .get("pullRequest", {})
+            .get("reviewThreads", {})
+            .get("nodes", [])
+        )
+        return list(threads) if isinstance(threads, list) else []
     except (subprocess.CalledProcessError, json.JSONDecodeError):
         return []
 
@@ -260,7 +275,7 @@ def extract_feedback_item(
     summary = body[:200] + "..." if len(body) > 200 else body
     summary = summary.replace("\n", " ").strip()
 
-    item = {
+    item: dict[str, Any] = {
         "author": author,
         "body": summary,
         "full_body": body,
@@ -319,10 +334,10 @@ def main():
     review_decision = pr_info.get("reviewDecision", "")
 
     # Categorized feedback using LOGAF scale
-    feedback = {
-        "high": [],      # Must address before merge
-        "medium": [],    # Should address
-        "low": [],       # Optional suggestions
+    feedback: dict[str, list[dict[str, Any]]] = {
+        "high": [],  # Must address before merge
+        "medium": [],  # Should address
+        "low": [],  # Optional suggestions
         "bot": [],
         "resolved": [],
     }
@@ -431,7 +446,7 @@ def main():
                 feedback[category].append(item)
 
     # Build output
-    output = {
+    output: dict[str, Any] = {
         "pr": {
             "number": pr_number,
             "url": pr_info.get("url", ""),
@@ -452,7 +467,9 @@ def main():
             "unresolved_review_threads": unresolved_review_threads,
             "all_review_threads_resolved": unresolved_review_threads == 0,
             "needs_attention": len(feedback["high"]) + len(feedback["medium"]),
-            "actionable_items": len(feedback["high"]) + len(feedback["medium"]) + len(feedback["low"]),
+            "actionable_items": len(feedback["high"])
+            + len(feedback["medium"])
+            + len(feedback["low"]),
         },
         "feedback": feedback,
     }
@@ -476,7 +493,7 @@ def main():
     else:
         output["completion_requires_full_fetch"] = False
 
-    feedback_blockers = []
+    feedback_blockers: list[str] = []
     if unresolved_review_threads > 0:
         feedback_blockers.append("Unresolved review threads remain")
     if output["summary"]["actionable_items"] > 0:
@@ -486,7 +503,9 @@ def main():
     if review_decision == "CHANGES_REQUESTED":
         feedback_blockers.append("Review decision is CHANGES_REQUESTED")
     if args.skip_issue_comments:
-        feedback_blockers.append("Feedback snapshot is partial; full fetch required before completion")
+        feedback_blockers.append(
+            "Feedback snapshot is partial; full fetch required before completion"
+        )
 
     output["completion_blockers"] = feedback_blockers
     output["feedback_cleared"] = not feedback_blockers

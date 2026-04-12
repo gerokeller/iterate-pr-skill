@@ -33,6 +33,7 @@ Design notes:
 - Uses `gh auth token` for credentials and urllib for HTTP (no external deps).
 - Transient HTTP failures are logged to stderr and retried on the next cycle.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -44,7 +45,6 @@ from datetime import datetime, timezone
 from typing import Any
 from urllib import error as urlerror
 from urllib import request as urlrequest
-
 
 GITHUB_API = "https://api.github.com"
 USER_AGENT = "iterate-pr-watch/1.0"
@@ -143,7 +143,8 @@ def get_pr_info(explicit: int | None) -> dict[str, Any] | None:
     args = ["pr", "view", "--json", "number,headRefOid,baseRepository"]
     if explicit:
         args.insert(2, str(explicit))
-    return run_gh_json(args)  # type: ignore[return-value]
+    result = run_gh_json(args)
+    return result if isinstance(result, dict) else None
 
 
 def get_repo_slug() -> str | None:
@@ -173,7 +174,9 @@ def fetch_check_state(
     """
     changed = False
     # check-runs
-    status, body = client.get(f"/repos/{owner}/{repo}/commits/{sha}/check-runs", {"per_page": "100"})
+    status, body = client.get(
+        f"/repos/{owner}/{repo}/commits/{sha}/check-runs", {"per_page": "100"}
+    )
     if status == 200 and isinstance(body, dict):
         runs = {cr["name"]: bucket_check_run(cr) for cr in body.get("check_runs", [])}
         cache["check_runs"] = runs

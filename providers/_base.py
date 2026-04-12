@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Callable, Optional
 
 
 @dataclass(frozen=True)
@@ -30,7 +30,13 @@ class RecoveryHint:
         }
 
 
-RecoveryBuilder = Callable[[str | None, str, "list[str]"], "RecoveryHint | None"]
+# Type alias lives at module scope, so PEP 604 ``X | None`` syntax would be
+# evaluated eagerly and break on Python 3.9. Use ``Optional`` for the alias.
+# ``from __future__ import annotations`` only defers *annotations*, not aliases.
+RecoveryBuilder = Callable[
+    [Optional[str], str, list[str]],
+    Optional["RecoveryHint"],
+]
 
 
 @dataclass(frozen=True)

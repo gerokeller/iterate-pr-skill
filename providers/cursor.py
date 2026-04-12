@@ -6,7 +6,6 @@ import re
 
 from ._base import Provider
 
-
 PROVIDER = Provider(
     name="cursor",
     detect_keywords=("cursor",),

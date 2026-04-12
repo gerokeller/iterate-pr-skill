@@ -12,25 +12,31 @@ If --pr is not specified, uses the PR for the current branch.
 
 Output: JSON to stdout with structured check data.
 """
+
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
 import json
 import re
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from providers import (  # noqa: E402
+from providers import (
     all_failure_markers,
+)
+from providers import (
     build_recovery_hint as provider_recovery_hint,
+)
+from providers import (
     classify_family as provider_classify_family,
+)
+from providers import (
     detect_provider as provider_detect,
 )
-
 
 ACTIONS_RUN_LINK_RE = re.compile(r"/actions/runs/(?P<run_id>\d+)(?:/job/(?P<job_id>\d+))?")
 FAILURE_MARKER_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(all_failure_markers())
@@ -40,7 +46,7 @@ def run_gh(args: list[str]) -> dict[str, Any] | list[Any] | None:
     """Run a gh CLI command and return parsed JSON output."""
     try:
         result = subprocess.run(
-            ["gh"] + args,
+            ["gh", *args],
             capture_output=True,
             text=True,
             check=True,
@@ -63,7 +69,8 @@ def get_pr_info(pr_number: int | None = None) -> dict[str, Any] | None:
     ]
     if pr_number:
         args.insert(2, str(pr_number))
-    return run_gh(args)
+    result = run_gh(args)
+    return result if isinstance(result, dict) else None
 
 
 def get_checks(pr_number: int | None = None) -> list[dict[str, Any]]:
@@ -77,12 +84,18 @@ def get_checks(pr_number: int | None = None) -> list[dict[str, Any]]:
 
 def get_failed_runs(branch: str) -> list[dict[str, Any]]:
     """Get recent failed or cancelled workflow runs for a branch."""
-    result = run_gh([
-        "run", "list",
-        "--branch", branch,
-        "--limit", "10",
-        "--json", "databaseId,name,status,conclusion,headSha"
-    ])
+    result = run_gh(
+        [
+            "run",
+            "list",
+            "--branch",
+            branch,
+            "--limit",
+            "10",
+            "--json",
+            "databaseId,name,status,conclusion,headSha",
+        ]
+    )
     if not isinstance(result, list):
         return []
     # Return runs that failed or were cancelled.
@@ -352,7 +365,7 @@ def main():
         processed_checks.append(processed)
 
     # Build output
-    output = {
+    output: dict[str, Any] = {
         "pr": {
             "number": pr_number,
             "url": pr_info.get("url", ""),
@@ -378,7 +391,7 @@ def main():
         "checks": processed_checks,
     }
 
-    completion_blockers = []
+    completion_blockers: list[str] = []
     if output["summary"]["actionable"] > 0:
         completion_blockers.append("One or more checks are still failing, pending, or cancelled")
     if is_draft:

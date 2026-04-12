@@ -10,9 +10,7 @@ import re
 from ._base import Provider, RecoveryHint
 
 
-def _recovery(
-    family: str | None, status: str, _markers: list[str]
-) -> RecoveryHint | None:
+def _recovery(family: str | None, status: str, _markers: list[str]) -> RecoveryHint | None:
     if family != "codecov-coverage" or status not in {"fail", "cancel", "pending"}:
         return None
     return RecoveryHint(

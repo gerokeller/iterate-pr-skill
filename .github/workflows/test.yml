@@ -5,7 +5,39 @@ on:
     branches: [master]
   pull_request:
 
+# Restrict the default GITHUB_TOKEN to read-only contents. None of the three
+# jobs push commits, post comments, or mutate repo state; they only check out
+# code and run Python scripts locally on the runner.
+permissions:
+  contents: read
+
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install dev tools
+        run: pip install -e ".[dev]"
+      - name: Ruff lint
+        run: ruff check .
+      - name: Ruff format check
+        run: ruff format --check .
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install dev tools
+        run: pip install -e ".[dev]"
+      - name: Mypy
+        run: mypy
+
   test:
     runs-on: ubuntu-latest
     strategy:

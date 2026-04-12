@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import re
 
-
 GENERIC_BOT_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"(?i)bot$"),
     re.compile(r"(?i)\[bot\]$"),
