@@ -1,0 +1,38 @@
+# Dependabot version & security updates.
+# Security updates activate automatically once this config is present and
+# inherit the grouping, labels, and commit-message conventions below.
+# Docs: https://docs.github.com/en/code-security/dependabot
+#
+# Coverage:
+#   - GitHub Actions workflow pins (actions/checkout, actions/setup-python, ...).
+#
+# Not covered:
+#   - Python dependencies. The bundled scripts use PEP 723 inline metadata
+#     (requires-python only, no runtime deps) which Dependabot does not scan.
+#     If a pyproject.toml or requirements.txt is added later, add a matching
+#     `pip` ecosystem block here.
+
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Zurich"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"
+    groups:
+      # Bundle patch + minor bumps so the weekly run produces a single PR
+      # rather than one per action. Majors stay individual for review.
+      actions-minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
