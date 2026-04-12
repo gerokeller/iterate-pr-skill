@@ -5,6 +5,12 @@ on:
     branches: [master]
   pull_request:
 
+# Restrict the default GITHUB_TOKEN to read-only contents. None of the three
+# jobs push commits, post comments, or mutate repo state; they only check out
+# code and run Python scripts locally on the runner.
+permissions:
+  contents: read
+
 jobs:
   lint:
     runs-on: ubuntu-latest
