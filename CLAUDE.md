@@ -77,5 +77,25 @@ Three layers, all under `skills/iterate-pr/`:
 - Scripts are intentionally loose files, not a package. `pyproject.toml` packages `providers/` only via a hatch `sources` mapping that flattens `skills/iterate-pr/providers` to `providers` in the wheel — that exists solely so `pip install -e ".[dev]"` works in CI. Don't "fix" this by packaging the scripts.
 - Runtime code has **zero third-party dependencies** and must stay that way. Scripts ship to end users via `uv run` with PEP 723 metadata.
 - Tests use duck-typed mocks heavily; mypy's `disallow_untyped_defs` is relaxed for `tests.*`. Don't add type annotations just to silence mypy in tests.
-- The plugin version in `.claude-plugin/plugin.json` and the wheel version in `pyproject.toml` should stay in sync; bump both when cutting a release. Claude Code uses the `plugin.json` version for `/plugin update` detection.
+- The plugin version in `.claude-plugin/plugin.json` and the wheel version in `pyproject.toml` must stay in sync. Claude Code uses the `plugin.json` version for `/plugin update` detection. See the **Releases** section below for how bumps happen.
 - All skill scripts must be run from the consumer's repo root (where their `.git` lives), not from the skill directory. The skill resolves its own location via `${CLAUDE_SKILL_ROOT}`.
+
+## Releases
+
+Releases are driven by `.github/workflows/release.yml`, which runs on every push to `master`. The workflow:
+
+1. Reads `version` from `.claude-plugin/plugin.json`.
+2. If a git tag `v<version>` already exists, it auto-bumps the **patch** component, writes the new version back to both `.claude-plugin/plugin.json` and `pyproject.toml`, and commits the bump as `chore(release): bump version to v<new> [skip ci]`. The `[skip ci]` marker prevents the bump commit from re-triggering the workflow.
+3. If the tag does **not** exist (meaning a human PR already bumped the version), it uses the current version as-is with no extra commit.
+4. Creates tag `v<version>` at HEAD and publishes a GitHub Release with auto-generated notes.
+
+### What this means for contributors and AI agents
+
+- **Patch releases are automatic.** Bug fixes and other backwards-compatible changes do not need a version bump in the PR. The workflow takes care of it after merge.
+- **Minor and major bumps are manual.** For a new feature (minor) or a breaking change (major), edit both files in the PR:
+  - `.claude-plugin/plugin.json`: `"version": "X.Y.Z"`
+  - `pyproject.toml`: `version = "X.Y.Z"`
+  Keep them identical. The release workflow will detect that no tag exists yet for that version and publish it verbatim on merge, without auto-incrementing.
+- **Do not create git tags or GitHub Releases by hand.** The workflow owns tag creation; manual tags will confuse the "has this version shipped?" check.
+- **Do not amend or revert the bot's bump commits** on `master`. They are the source of truth for which patch version is current.
+- If you need to skip a release entirely (e.g. a CI-only change that should not ship), include `[skip ci]` in the merge commit message; GitHub will skip all workflows for that commit, including this one.
