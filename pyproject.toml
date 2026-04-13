@@ -1,6 +1,6 @@
 [project]
 name = "iterate-pr-skill"
-version = "0.1.0"
+version = "0.2.0"
 description = "Claude Code skill: iterate on a pull request until merge-ready."
 readme = "README.md"
 license = { text = "MIT" }
@@ -36,9 +36,15 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 # Not published to PyPI; this block only exists so ``pip install -e .[dev]``
-# works in CI. Include ``providers`` as the sole Python package; scripts are
-# intentionally kept as loose files for ``uv run`` invocation.
-packages = ["providers"]
+# works in CI. The skill (SKILL.md, scripts/, providers/) lives under
+# ``skills/iterate-pr/`` so the plugin layout (.claude-plugin/plugin.json
+# at repo root, skill assets under skills/<name>/) resolves correctly when
+# users install via Claude Code's plugin system. Map the in-repo path back
+# to a flat ``providers`` import for dev tooling.
+packages = ["skills/iterate-pr/providers"]
+
+[tool.hatch.build.targets.wheel.sources]
+"skills/iterate-pr/providers" = "providers"
 
 [tool.ruff]
 line-length = 100
@@ -76,7 +82,7 @@ indent-style = "space"
 
 [tool.mypy]
 python_version = "3.9"
-files = ["providers", "scripts", "tests"]
+files = ["skills/iterate-pr/providers", "skills/iterate-pr/scripts", "tests"]
 # Start with sensible defaults; can tighten to ``strict = true`` later.
 warn_return_any = true
 warn_unused_configs = true
@@ -86,9 +92,9 @@ check_untyped_defs = true
 no_implicit_optional = true
 strict_equality = true
 disallow_incomplete_defs = true
-# The scripts sit next to ``providers/`` and rely on a sys.path hack to import
-# it. Tell mypy about both roots so imports resolve.
-mypy_path = "$MYPY_CONFIG_FILE_DIR:$MYPY_CONFIG_FILE_DIR/scripts"
+# Scripts sit next to ``providers/`` inside the skill dir and rely on a
+# sys.path hack to import it. Tell mypy about both roots so imports resolve.
+mypy_path = "$MYPY_CONFIG_FILE_DIR/skills/iterate-pr:$MYPY_CONFIG_FILE_DIR/skills/iterate-pr/scripts"
 
 [[tool.mypy.overrides]]
 module = "tests.*"
