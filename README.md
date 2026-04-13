@@ -46,6 +46,43 @@ Inside a repository with an open PR on the current branch, prompt Claude Code:
 
 The skill auto-loads. It keeps going through check failures and review feedback until the PR is merge-ready or it stops with a clear reason.
 
+## What a run looks like
+
+Every time the skill stops, it emits a short verdict: a `stop_reason`, the `evidence` that produced it, and a `next_action` (unless the PR is merge-ready). You can rerun the skill after addressing the `next_action` and it will pick up from the current state.
+
+A successful run ends with something like:
+
+```text
+stop_reason: merge-ready
+evidence: ready_for_merge=true, feedback_cleared=true, all_review_threads_resolved=true, mergeStateStatus=CLEAN.
+```
+
+A blocked run ends with something like:
+
+```text
+stop_reason: blocked-by-checks
+evidence: 1 check failing (tests), 0 pending, mergeStateStatus=BLOCKED, ready_for_merge=false.
+next_action: inspect the failing log excerpt above; the skill attempted one fix pass and the failure persisted.
+```
+
+### Common stop reasons
+
+| Reason | What it means | What you do |
+|--------|---------------|-------------|
+| `merge-ready` | CI green, all review threads resolved, no pending checks. | Merge. |
+| `blocked-by-checks` | At least one check is failing, cancelled, or stuck pending. | Read the evidence, open the details link, fix or wait. |
+| `blocked-by-external-check` | A third-party provider (preview env, coverage, etc.) is failing and repo-side recovery is exhausted. | Wait for the provider, or fix the provider-specific blocker named in the evidence. |
+| `blocked-by-feedback` | Unresolved actionable review comments remain. | Read the threads; if the skill rejected any, its reasoning is in the reply. |
+| `blocked-by-review-decision` | `reviewDecision=CHANGES_REQUESTED`. | Address the review, rerun. |
+| `blocked-by-auth` | `gh auth status` failed. | `gh auth login`, rerun. |
+| `blocked-by-rebase` | Branch needs rebase against the base. | Rebase, push, rerun. |
+| `blocked-by-draft-pr` | PR is still a draft. | Mark ready for review or close. |
+| `blocked-by-no-pr` | No PR exists for the current branch. | Open one, rerun. |
+| `blocked-by-ambiguity` | A review comment depends on context the skill cannot infer. | Answer in chat; the skill continues from there. |
+| `stopped-after-max-attempts` | Same failure persisted across 3 attempts. | Inspect manually and rerun once unblocked. |
+
+Provider-contributed stop reasons like `blocked-by-supabase-preview` carry their own recovery ladder; see `skills/iterate-pr/providers/<name>.md`.
+
 ## Pluggable provider layer
 
 Provider-specific handling (Supabase preview recovery, Codecov coverage blockers, bot-author detection, etc.) lives in [`skills/iterate-pr/providers/`](./skills/iterate-pr/providers/). Each provider is a small Python module plus optional agent-facing `.md` docs. The registry auto-discovers them at import time.
