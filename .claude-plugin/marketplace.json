@@ -1,0 +1,14 @@
+{
+  "name": "iterate-pr-marketplace",
+  "owner": {
+    "name": "Gero Keller",
+    "url": "https://github.com/gerokeller"
+  },
+  "plugins": [
+    {
+      "name": "iterate-pr",
+      "source": "./",
+      "description": "Iterate on a PR until all required checks are green and all review feedback is handled."
+    }
+  ]
+}
