@@ -82,20 +82,33 @@ Three layers, all under `skills/iterate-pr/`:
 
 ## Releases
 
-Releases are driven by `.github/workflows/release.yml`, which runs on every push to `master`. The workflow:
+**The version bump is manual; the release itself is automatic.** Merging to `master` does not, by itself, ship a new version, but any merge that changes the `version` field will be tagged and published automatically.
+
+`.github/workflows/release.yml` runs on every push to `master`:
 
 1. Reads `version` from `.claude-plugin/plugin.json`.
-2. If a git tag `v<version>` already exists, it auto-bumps the **patch** component, writes the new version back to both `.claude-plugin/plugin.json` and `pyproject.toml`, and commits the bump as `chore(release): bump version to v<new> [skip ci]`. The `[skip ci]` marker prevents the bump commit from re-triggering the workflow.
-3. If the tag does **not** exist (meaning a human PR already bumped the version), it uses the current version as-is with no extra commit.
-4. Creates tag `v<version>` at HEAD and publishes a GitHub Release with auto-generated notes.
+2. If a git tag `v<version>` already exists, it exits as a no-op.
+3. Otherwise, it creates tag `v<version>` at the current commit and publishes a GitHub Release with auto-generated notes.
 
-### What this means for contributors and AI agents
+The workflow never writes back to the repo and never auto-bumps. So a release happens exactly when (and only when) a merged PR changed the version field. This keeps the workflow compatible with branch rulesets that require CodeQL scanning before push, and makes every release a deliberate act without requiring any post-merge steps.
 
-- **Patch releases are automatic.** Bug fixes and other backwards-compatible changes do not need a version bump in the PR. The workflow takes care of it after merge.
-- **Minor and major bumps are manual.** For a new feature (minor) or a breaking change (major), edit both files in the PR:
-  - `.claude-plugin/plugin.json`: `"version": "X.Y.Z"`
-  - `pyproject.toml`: `version = "X.Y.Z"`
-  Keep them identical. The release workflow will detect that no tag exists yet for that version and publish it verbatim on merge, without auto-incrementing.
-- **Do not create git tags or GitHub Releases by hand.** The workflow owns tag creation; manual tags will confuse the "has this version shipped?" check.
-- **Do not amend or revert the bot's bump commits** on `master`. They are the source of truth for which patch version is current.
-- If you need to skip a release entirely (e.g. a CI-only change that should not ship), include `[skip ci]` in the merge commit message; GitHub will skip all workflows for that commit, including this one.
+### How to cut a release
+
+In the PR that should ship the new version (typically the final PR of a batch, or a dedicated release PR), edit both files so they agree:
+
+- `.claude-plugin/plugin.json`: `"version": "X.Y.Z"`
+- `pyproject.toml`: `version = "X.Y.Z"`
+
+Follow semver:
+- **patch** (`0.2.0` → `0.2.1`) for bug fixes and backwards-compatible internals
+- **minor** (`0.2.0` → `0.3.0`) for new features, new providers, new scripts
+- **major** (`0.2.0` → `1.0.0`) for breaking changes to `SKILL.md` behavior, script CLIs, or provider contracts
+
+On merge, the workflow tags that commit and publishes the Release. No further action required.
+
+### Rules for contributors and AI agents
+
+- **Never bump the version in a PR that is not the release PR.** If you are fixing a bug or adding a small feature, leave the version untouched; the release PR batches multiple changes into one version bump.
+- **Do not create git tags or GitHub Releases by hand.** The workflow owns tag creation, and a manual tag will silence the workflow (it will see the tag and exit as a no-op for that version).
+- **Changes that should not ship at all** (e.g. CI-only tweaks, README typos) can be merged without a version bump; the workflow will see the existing tag and do nothing.
+- **If the workflow fails**, fix it and merge the fix before the next release. A failed release run does not retry automatically. You can also re-run the failed workflow manually from the Actions tab once the underlying issue is resolved, since the tag-existence check is idempotent.
