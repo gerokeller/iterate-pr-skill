@@ -11,11 +11,17 @@ cycles cost a single cheap 304 per endpoint. This makes short poll intervals
 (10-15s) safe on GitHub's primary rate limit.
 
 Usage:
-    uv run watch_pr_state.py [--pr NUMBER] [--interval 15]
+    uv run watch_pr_state.py [--pr NUMBER] [--repo OWNER/NAME] [--interval 15]
                              [--watch {checks,feedback,all}]
                              [--since ISO_TIMESTAMP]
                              [--exit-when {checks-settled,never}]
                              [--max-idle-cycles N]
+
+When launched via Claude Code's Monitor tool, always pass both --pr and
+--repo explicitly. The subprocess inherits the parent's cwd, which may not
+be the PR branch's worktree; without --pr/--repo the watcher falls back to
+`gh pr view` / `gh repo view` against cwd and will exit with
+`error:no-pr-for-current-branch` if the current branch has no PR.
 
 Event line formats (stable, parseable):
     check:<name>:<old_state>-><new_state>
@@ -139,10 +145,12 @@ class ConditionalClient:
             return 0, None
 
 
-def get_pr_info(explicit: int | None) -> dict[str, Any] | None:
+def get_pr_info(explicit: int | None, repo: str | None = None) -> dict[str, Any] | None:
     args = ["pr", "view", "--json", "number,headRefOid,baseRepository"]
     if explicit:
         args.insert(2, str(explicit))
+    if repo:
+        args.extend(["--repo", repo])
     result = run_gh_json(args)
     return result if isinstance(result, dict) else None
 
@@ -252,6 +260,14 @@ def parse_iso(s: str) -> datetime:
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--pr", type=int)
+    p.add_argument(
+        "--repo",
+        type=str,
+        help=(
+            "owner/name slug. Required when cwd isn't the PR's worktree "
+            "(e.g. when launched via the Monitor tool from a different path)."
+        ),
+    )
     p.add_argument("--interval", type=int, default=15)
     p.add_argument("--watch", choices=["checks", "feedback", "all"], default="all")
     p.add_argument("--since", type=str, help="ISO-8601 baseline for new comments/reviews")
@@ -271,18 +287,30 @@ def main() -> int:
         return 2
     client = ConditionalClient(token)
 
-    pr_info = get_pr_info(args.pr)
+    # Resolve repo slug first so PR lookup can be cwd-independent when --repo
+    # is supplied. Falls back to `gh repo view` against cwd otherwise.
+    if args.repo:
+        if "/" not in args.repo:
+            emit("error:invalid-repo-slug-expected-owner/name")
+            return 2
+        slug = args.repo
+    else:
+        resolved = get_repo_slug()
+        if not resolved or "/" not in resolved:
+            emit("error:cannot-resolve-repo-slug-pass-repo-owner/name")
+            return 2
+        slug = resolved
+    owner, repo = slug.split("/", 1)
+
+    pr_info = get_pr_info(args.pr, repo=slug)
     if not pr_info or "number" not in pr_info:
-        emit("error:no-pr-for-current-branch")
+        if args.pr:
+            emit(f"error:pr-{args.pr}-not-found-in-{slug}")
+        else:
+            emit("error:no-pr-for-current-branch-pass-pr-number")
         return 2
     pr_number = pr_info["number"]
     head_sha = pr_info.get("headRefOid")
-
-    slug = get_repo_slug()
-    if not slug or "/" not in slug:
-        emit("error:cannot-resolve-repo-slug")
-        return 2
-    owner, repo = slug.split("/", 1)
 
     baseline_iso = args.since or datetime.now(timezone.utc).isoformat()
     baseline_dt = parse_iso(baseline_iso)
