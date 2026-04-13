@@ -82,15 +82,15 @@ Three layers, all under `skills/iterate-pr/`:
 
 ## Releases
 
-Releases are **manual**. Merging to `master` does not, by itself, ship a new version. A release only happens when a PR explicitly bumps the version in both `.claude-plugin/plugin.json` and `pyproject.toml`.
+**The version bump is manual; the release itself is automatic.** Merging to `master` does not, by itself, ship a new version, but any merge that changes the `version` field will be tagged and published automatically.
 
-`.github/workflows/release.yml` runs on every push to `master`, but its job is narrow:
+`.github/workflows/release.yml` runs on every push to `master`:
 
 1. Reads `version` from `.claude-plugin/plugin.json`.
 2. If a git tag `v<version>` already exists, it exits as a no-op.
 3. Otherwise, it creates tag `v<version>` at the current commit and publishes a GitHub Release with auto-generated notes.
 
-The workflow never writes back to the repo and never auto-bumps. This keeps it compatible with branch rulesets that require CodeQL scanning before push, and makes every release a deliberate act.
+The workflow never writes back to the repo and never auto-bumps. So a release happens exactly when (and only when) a merged PR changed the version field. This keeps the workflow compatible with branch rulesets that require CodeQL scanning before push, and makes every release a deliberate act without requiring any post-merge steps.
 
 ### How to cut a release
 
