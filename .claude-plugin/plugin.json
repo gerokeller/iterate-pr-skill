@@ -1,0 +1,13 @@
+{
+  "name": "iterate-pr",
+  "description": "Iterate on a PR until all required checks are green and all review feedback is handled.",
+  "version": "0.2.0",
+  "author": {
+    "name": "Gero Keller",
+    "url": "https://github.com/gerokeller"
+  },
+  "homepage": "https://github.com/gerokeller/iterate-pr-skill",
+  "repository": "https://github.com/gerokeller/iterate-pr-skill",
+  "license": "MIT",
+  "keywords": ["claude-code", "skill", "pull-request", "ci", "github"]
+}

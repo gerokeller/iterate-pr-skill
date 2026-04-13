@@ -4,8 +4,9 @@ import os
 import sys
 import unittest
 
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-for _entry in (_ROOT, os.path.join(_ROOT, "scripts")):
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_SKILL_DIR = os.path.join(_REPO_ROOT, "skills", "iterate-pr")
+for _entry in (_SKILL_DIR, os.path.join(_SKILL_DIR, "scripts")):
     if _entry not in sys.path:
         sys.path.insert(0, _entry)
 
