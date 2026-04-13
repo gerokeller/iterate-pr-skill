@@ -83,10 +83,13 @@ All polling uses ETag-conditional GitHub requests (`If-None-Match`). Steady-stat
 
 ```bash
 uv run ${CLAUDE_SKILL_ROOT}/scripts/watch_pr_state.py \
+    --pr "$PR_NUMBER" --repo "$REPO_SLUG" \
     --watch all --interval 15 \
     --since "$SNAPSHOT_AT" \
     --exit-when checks-settled --max-idle-cycles 1
 ```
+
+Always pass both `--pr` and `--repo` when launching via `Monitor`. The Monitor subprocess inherits the parent agent's cwd, which may not be the PR branch's worktree (especially when iterating from a non-branch directory or when the main repo has a different branch checked out). Without them, the watcher falls back to `gh pr view` / `gh repo view` against cwd and exits with `error:no-pr-for-current-branch-pass-pr-number` or `error:cannot-resolve-repo-slug-pass-repo-owner/name`. Grab both from the initial `fetch_pr_checks.py` snapshot: `PR_NUMBER` from `pr.number`, `REPO_SLUG` from `gh repo view --json nameWithOwner -q .nameWithOwner` run once in the PR worktree.
 
 Event lines:
 - `check:<name>:<old>-><new>` — a check changed state
@@ -368,6 +371,7 @@ If the push triggered new checks, wait for GitHub to report them. Prefer reactiv
 ```bash
 # Preferred (reactive, ETag-conditional): launched via the Monitor tool, not directly.
 uv run ${CLAUDE_SKILL_ROOT}/scripts/watch_pr_state.py \
+    --pr "$PR_NUMBER" --repo "$REPO_SLUG" \
     --watch all --interval 15 \
     --since "$PUSH_SNAPSHOT_AT" \
     --exit-when checks-settled --max-idle-cycles 1

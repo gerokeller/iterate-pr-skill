@@ -310,5 +310,87 @@ class FetchReviewsSinceTests(unittest.TestCase):
         self.assertEqual(wps.fetch_reviews_since(self.client, "o", "r", 1, self.baseline), [])
 
 
+class GetPrInfoTests(unittest.TestCase):
+    @patch.object(wps, "run_gh_json")
+    def test_explicit_pr_and_repo_are_passed_to_gh(self, run: MagicMock) -> None:
+        run.return_value = {"number": 42, "headRefOid": "abc", "baseRepository": {}}
+        info = wps.get_pr_info(42, repo="owner/name")
+        self.assertEqual(info, {"number": 42, "headRefOid": "abc", "baseRepository": {}})
+        args = run.call_args.args[0]
+        self.assertEqual(args[0:2], ["pr", "view"])
+        self.assertIn("42", args)
+        self.assertIn("--repo", args)
+        repo_idx = args.index("--repo")
+        self.assertEqual(args[repo_idx + 1], "owner/name")
+
+    @patch.object(wps, "run_gh_json")
+    def test_no_repo_falls_back_to_cwd_resolution(self, run: MagicMock) -> None:
+        run.return_value = {"number": 1}
+        wps.get_pr_info(None)
+        args = run.call_args.args[0]
+        self.assertNotIn("--repo", args)
+
+    @patch.object(wps, "run_gh_json")
+    def test_only_requests_json_fields_consumed_downstream(self, run: MagicMock) -> None:
+        # `gh pr view --json` rejects unknown fields with exit 1, which
+        # `run_gh_json` swallows and we then surface as a misleading
+        # `no-pr-for-current-branch` error. Lock the field list to fields
+        # `main()` actually reads (number, headRefOid).
+        run.return_value = {"number": 1, "headRefOid": "abc"}
+        wps.get_pr_info(None)
+        args = run.call_args.args[0]
+        json_idx = args.index("--json")
+        fields = set(args[json_idx + 1].split(","))
+        self.assertEqual(fields, {"number", "headRefOid"})
+
+
+class MainResolutionTests(unittest.TestCase):
+    """Early-exit paths when --pr / --repo / gh context can't be resolved."""
+
+    def _run_main(self, argv: list[str]) -> tuple[int, list[str]]:
+        captured: list[str] = []
+        original_emit = wps.emit
+        wps.emit = lambda line: captured.append(line)
+        original_argv = sys.argv
+        sys.argv = ["watch_pr_state.py", *argv]
+        try:
+            rc = wps.main()
+        finally:
+            wps.emit = original_emit
+            sys.argv = original_argv
+        return rc, captured
+
+    @patch.object(wps, "gh_token", return_value="t")
+    @patch.object(wps, "get_repo_slug", return_value=None)
+    def test_missing_slug_without_repo_flag_emits_actionable_error(
+        self, _slug: MagicMock, _tok: MagicMock
+    ) -> None:
+        rc, out = self._run_main([])
+        self.assertEqual(rc, 2)
+        self.assertIn("error:cannot-resolve-repo-slug-pass-repo-owner/name", out)
+
+    @patch.object(wps, "gh_token", return_value="t")
+    def test_invalid_repo_flag_is_rejected(self, _tok: MagicMock) -> None:
+        rc, out = self._run_main(["--repo", "not-a-slug"])
+        self.assertEqual(rc, 2)
+        self.assertIn("error:invalid-repo-slug-expected-owner/name", out)
+
+    @patch.object(wps, "gh_token", return_value="t")
+    @patch.object(wps, "get_pr_info", return_value=None)
+    def test_explicit_repo_but_no_pr_for_cwd_branch(self, _pr: MagicMock, _tok: MagicMock) -> None:
+        rc, out = self._run_main(["--repo", "owner/name"])
+        self.assertEqual(rc, 2)
+        self.assertIn("error:no-pr-for-current-branch-pass-pr-number", out)
+
+    @patch.object(wps, "gh_token", return_value="t")
+    @patch.object(wps, "get_pr_info", return_value=None)
+    def test_explicit_pr_and_repo_but_pr_not_found_names_the_pr(
+        self, _pr: MagicMock, _tok: MagicMock
+    ) -> None:
+        rc, out = self._run_main(["--repo", "owner/name", "--pr", "999"])
+        self.assertEqual(rc, 2)
+        self.assertIn("error:pr-999-not-found-in-owner/name", out)
+
+
 if __name__ == "__main__":
     unittest.main()
