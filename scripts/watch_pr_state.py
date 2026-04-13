@@ -146,7 +146,10 @@ class ConditionalClient:
 
 
 def get_pr_info(explicit: int | None, repo: str | None = None) -> dict[str, Any] | None:
-    args = ["pr", "view", "--json", "number,headRefOid,baseRepository"]
+    # Only request fields we actually consume below. `baseRepository` is not a
+    # valid `gh pr view` JSON field; including it makes gh exit non-zero, which
+    # used to bubble up as a misleading `no-pr-for-current-branch` error.
+    args = ["pr", "view", "--json", "number,headRefOid"]
     if explicit:
         args.insert(2, str(explicit))
     if repo:

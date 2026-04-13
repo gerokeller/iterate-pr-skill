@@ -330,6 +330,19 @@ class GetPrInfoTests(unittest.TestCase):
         args = run.call_args.args[0]
         self.assertNotIn("--repo", args)
 
+    @patch.object(wps, "run_gh_json")
+    def test_only_requests_json_fields_consumed_downstream(self, run: MagicMock) -> None:
+        # `gh pr view --json` rejects unknown fields with exit 1, which
+        # `run_gh_json` swallows and we then surface as a misleading
+        # `no-pr-for-current-branch` error. Lock the field list to fields
+        # `main()` actually reads (number, headRefOid).
+        run.return_value = {"number": 1, "headRefOid": "abc"}
+        wps.get_pr_info(None)
+        args = run.call_args.args[0]
+        json_idx = args.index("--json")
+        fields = set(args[json_idx + 1].split(","))
+        self.assertEqual(fields, {"number", "headRefOid"})
+
 
 class MainResolutionTests(unittest.TestCase):
     """Early-exit paths when --pr / --repo / gh context can't be resolved."""
