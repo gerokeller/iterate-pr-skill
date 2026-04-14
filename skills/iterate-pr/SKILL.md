@@ -9,7 +9,7 @@ Continuously iterate on the current branch until every required PR check is gree
 
 **Requires**: GitHub CLI (`gh`) authenticated.
 
-**Important**: All scripts must be run from the repository root directory (where `.git` is located), not from the skill directory. Use the full path to the script via `${CLAUDE_SKILL_ROOT}`.
+**Important**: All scripts must be run from the repository root directory (where `.git` is located), not from the skill directory. Use the full path to the script via `${CLAUDE_SKILL_DIR}`.
 
 ## Operating Rules
 
@@ -51,8 +51,8 @@ Continuously iterate on the current branch until every required PR check is gree
 Fetches CI check status and extracts failure snippets from logs. The output distinguishes `cancel` from `skipping` so the agent can treat canceled checks as actionable.
 
 ```bash
-uv run ${CLAUDE_SKILL_ROOT}/scripts/fetch_pr_checks.py [--pr NUMBER]
-uv run ${CLAUDE_SKILL_ROOT}/scripts/fetch_pr_checks.py --skip-logs [--pr NUMBER]
+uv run ${CLAUDE_SKILL_DIR}/scripts/fetch_pr_checks.py [--pr NUMBER]
+uv run ${CLAUDE_SKILL_DIR}/scripts/fetch_pr_checks.py --skip-logs [--pr NUMBER]
 ```
 
 Use `--skip-logs` for the fast initial snapshot. Re-run without `--skip-logs` only when the summary shows actionable failures and you need log detail.
@@ -82,7 +82,7 @@ Streams PR check-state transitions and new review activity as one-line events on
 All polling uses ETag-conditional GitHub requests (`If-None-Match`). Steady-state cycles cost a single cheap 304 per endpoint, so short intervals (10-15s) are safe on the primary rate limit. The watcher calls `/commits/{sha}/check-runs`, `/commits/{sha}/status`, `/issues/{n}/comments`, `/pulls/{n}/comments`, and `/pulls/{n}/reviews` directly (not `gh pr checks`) so it can attach `If-None-Match` headers.
 
 ```bash
-uv run ${CLAUDE_SKILL_ROOT}/scripts/watch_pr_state.py \
+uv run ${CLAUDE_SKILL_DIR}/scripts/watch_pr_state.py \
     --pr "$PR_NUMBER" --repo "$REPO_SLUG" \
     --watch all --interval 15 \
     --since "$SNAPSHOT_AT" \
@@ -106,8 +106,8 @@ The watcher never mutates state. It only tells you *when a re-snapshot is worth 
 Fetches and categorizes PR review feedback using the [LOGAF scale](https://develop.sentry.dev/engineering-practices/code-review/#logaf-scale). Items include `source`, stable IDs, timestamps, and review-thread metadata so the agent can reply and resolve deterministically.
 
 ```bash
-uv run ${CLAUDE_SKILL_ROOT}/scripts/fetch_pr_feedback.py [--pr NUMBER]
-uv run ${CLAUDE_SKILL_ROOT}/scripts/fetch_pr_feedback.py --skip-issue-comments [--pr NUMBER]
+uv run ${CLAUDE_SKILL_DIR}/scripts/fetch_pr_feedback.py [--pr NUMBER]
+uv run ${CLAUDE_SKILL_DIR}/scripts/fetch_pr_feedback.py --skip-issue-comments [--pr NUMBER]
 ```
 
 Use `--skip-issue-comments` for the fast initial snapshot. Re-run without it before replying, resolving, or declaring the PR clean.
@@ -148,8 +148,8 @@ Stop if no PR exists for the current branch.
 Fetch both CI and feedback state in parallel before making changes:
 
 ```bash
-uv run ${CLAUDE_SKILL_ROOT}/scripts/fetch_pr_checks.py --skip-logs [--pr NUMBER]
-uv run ${CLAUDE_SKILL_ROOT}/scripts/fetch_pr_feedback.py --skip-issue-comments [--pr NUMBER]
+uv run ${CLAUDE_SKILL_DIR}/scripts/fetch_pr_checks.py --skip-logs [--pr NUMBER]
+uv run ${CLAUDE_SKILL_DIR}/scripts/fetch_pr_feedback.py --skip-issue-comments [--pr NUMBER]
 ```
 
 Treat these as the authoritative starting point for the current run.
@@ -176,7 +176,7 @@ If a run is interrupted by new reviewer activity or changing check state, do not
 
 ### 3. Triage All PR Checks First
 
-Run `${CLAUDE_SKILL_ROOT}/scripts/fetch_pr_checks.py` to get structured failure data.
+Run `${CLAUDE_SKILL_DIR}/scripts/fetch_pr_checks.py` to get structured failure data.
 
 For this run:
 - enumerate every check whose status is not `pass` or `skipping`
@@ -370,7 +370,7 @@ If the push triggered new checks, wait for GitHub to report them. Prefer reactiv
 
 ```bash
 # Preferred (reactive, ETag-conditional): launched via the Monitor tool, not directly.
-uv run ${CLAUDE_SKILL_ROOT}/scripts/watch_pr_state.py \
+uv run ${CLAUDE_SKILL_DIR}/scripts/watch_pr_state.py \
     --pr "$PR_NUMBER" --repo "$REPO_SLUG" \
     --watch all --interval 15 \
     --since "$PUSH_SNAPSHOT_AT" \
