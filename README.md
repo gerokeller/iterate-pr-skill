@@ -97,7 +97,7 @@ To add support for a new CI/preview/coverage/bot system, drop a new file into `s
 | `skills/iterate-pr/scripts/fetch_pr_feedback.py` | Review feedback categorized with the [LOGAF scale](https://develop.sentry.dev/engineering-practices/code-review/#logaf-scale) |
 | `skills/iterate-pr/scripts/watch_pr_state.py` | ETag-conditional event stream of PR check transitions and new review activity, designed for Claude Code's `Monitor` tool |
 
-All scripts use PEP 723 inline metadata; invoke via `uv run <path>`. The skill itself references them through `${CLAUDE_SKILL_ROOT}/scripts/...` so paths resolve regardless of where the plugin is installed.
+All scripts use PEP 723 inline metadata; invoke via `uv run <path>`. The skill itself references them through `${CLAUDE_SKILL_DIR}/scripts/...` so paths resolve regardless of where the plugin is installed.
 
 ## Repository layout
 

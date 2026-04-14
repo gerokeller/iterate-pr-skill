@@ -1,6 +1,6 @@
 [project]
 name = "iterate-pr-skill"
-version = "0.2.1"
+version = "0.2.2"
 description = "Claude Code skill: iterate on a pull request until merge-ready."
 readme = "README.md"
 license = { text = "MIT" }

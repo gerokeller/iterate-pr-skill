@@ -1,7 +1,7 @@
 {
   "name": "iterate-pr",
   "description": "Iterate on a PR until all required checks are green and all review feedback is handled.",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "author": {
     "name": "Gero Keller",
     "url": "https://github.com/gerokeller"

@@ -23,7 +23,7 @@ pyproject.toml           # dev tooling (ruff + mypy); not published to PyPI
 tests/                   # unittest suite, sys.path-shimmed to point inside skills/iterate-pr/
 ```
 
-The `skills/iterate-pr/` prefix matters: Claude Code's plugin loader resolves `${CLAUDE_SKILL_ROOT}` to the skill's own directory, not the plugin root. SKILL.md invocations like `uv run ${CLAUDE_SKILL_ROOT}/scripts/fetch_pr_checks.py` only work because `scripts/` and `providers/` live as siblings of SKILL.md inside the skill dir.
+The `skills/iterate-pr/` prefix matters: Claude Code's plugin loader resolves `${CLAUDE_SKILL_DIR}` to the skill's own directory, not the plugin root. SKILL.md invocations like `uv run ${CLAUDE_SKILL_DIR}/scripts/fetch_pr_checks.py` only work because `scripts/` and `providers/` live as siblings of SKILL.md inside the skill dir.
 
 ## Common commands
 
@@ -78,7 +78,7 @@ Three layers, all under `skills/iterate-pr/`:
 - Runtime code has **zero third-party dependencies** and must stay that way. Scripts ship to end users via `uv run` with PEP 723 metadata.
 - Tests use duck-typed mocks heavily; mypy's `disallow_untyped_defs` is relaxed for `tests.*`. Don't add type annotations just to silence mypy in tests.
 - The plugin version in `.claude-plugin/plugin.json` and the wheel version in `pyproject.toml` must stay in sync. Claude Code uses the `plugin.json` version for `/plugin update` detection. See the **Releases** section below for how bumps happen.
-- All skill scripts must be run from the consumer's repo root (where their `.git` lives), not from the skill directory. The skill resolves its own location via `${CLAUDE_SKILL_ROOT}`.
+- All skill scripts must be run from the consumer's repo root (where their `.git` lives), not from the skill directory. The skill resolves its own location via `${CLAUDE_SKILL_DIR}`.
 
 ## Releases
 
